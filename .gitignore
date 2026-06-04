@@ -1,0 +1,19 @@
+# 의존성
+node_modules/
+
+# 빌드 산출물
+dist/
+build/
+
+# 환경 변수 (비밀)
+.env
+.env.local
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 기대표 작업용 초안(과정 외 참고자료) — 저장소에 올리지 않음
+_draft/
