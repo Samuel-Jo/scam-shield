@@ -636,7 +636,7 @@ PII 마스킹 구현 방식을 두고 팀 내에서 의견이 나뉘었습니다
 
 ### 한 일
 
-1. 박서준이 `web/index.html` 단일 파일 웹앱을 제작했습니다. V2 탐지 엔진을 그대로 내장해, CLI와 동일한 Pass Rate 90%로 동작합니다.
+1. 박서준이 `app/index.html` 단일 파일 웹앱을 제작했습니다. V2 탐지 엔진을 그대로 내장해, CLI와 동일한 Pass Rate 90%로 동작합니다.
 2. Cloudflare Pages에 배포해 https://scam-shield-9uc.pages.dev 주소로 누구나 브라우저에서 바로 사용할 수 있게 했습니다. HTTPS는 Cloudflare Pages 기본 제공입니다.
 3. DAY 12 중간 데모 때 차기 백로그로 남겼던 결과 색 강조 UI(피드백 #3)와 예시 체험 버튼 10개(피드백 #4)를 이 시점에 반영했습니다.
 
