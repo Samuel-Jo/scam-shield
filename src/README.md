@@ -55,7 +55,7 @@ node src/cli.mjs
 2. **문맥 이해 없음**: 단순 키워드 매칭이라 정상 대화에서 우연히 포함된 단어도 신호로 잡을 수 있습니다.
 3. **새로운 수법 미반영**: 규칙 사전에 없는 신종 사기 패턴은 탐지하지 못합니다.
 
-DAY8~9에서 고위험 티어·RAG식 키워드 KB·콤보 보너스로 V2 엔진이 구현됐습니다. 웹앱 배포됨: scam-shield-9uc.pages.dev (`app/index.html`).
+DAY8~9에서 고위험 티어·RAG식 키워드 KB·콤보 보너스로 V2 엔진이 구현됐습니다. 16일 완주 후 Workers AI LLM과 결합한 **V3 하이브리드**가 라이브 웹앱에 적용됐습니다(scam-shield-9uc.pages.dev, `app/index.html`). 규칙 V2 + LLM 하이브리드 Pass Rate 95%(19/20).
 
 ## DAY10 가드레일 (guardrails.mjs)
 

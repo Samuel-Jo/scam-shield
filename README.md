@@ -73,11 +73,12 @@ node src/cli.mjs "의심되는 문자를 여기에 붙여넣으세요"
 
 | 영역 | 내용 |
 |------|------|
-| 탐지 엔진 | 규칙 기반 V2 — 7종 신호 + 고위험 티어 보너스 + 콤보 보너스 5종 |
-| 실행 환경 | Node.js CLI (빌드 불필요, 즉시 실행) |
+| 탐지 엔진 | **규칙 V2 + Workers AI LLM 하이브리드(V3)** — 7종 신호 + 고위험 티어 보너스 + 콤보 보너스 5종 + LLM 문맥 판단 |
+| LLM | Cloudflare Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (서버 바인딩, API 키 불필요) |
+| 실행 환경 | Node.js CLI (빌드 불필요, 즉시 실행) + 라이브 웹앱(하이브리드) |
 | 지식 베이스 | RAG식 키워드 KB(`highRiskPatterns`) — 신고 사례 기반, 지속 확장 가능 |
 | 가드레일 | PII 마스킹·입력 검사·출력 검증·인젝션 탐지 4종 (`src/guardrails.mjs`) |
-| 성능 | Pass Rate 90%(18/20, DAY 13 실측) |
+| 성능 | Pass Rate 95%(19/20, V3 하이브리드 실측) — V2 90% 대비 +5%p |
 
 ---
 
@@ -92,4 +93,4 @@ node src/cli.mjs "의심되는 문자를 여기에 붙여넣으세요"
 
 ---
 
-> DAY 14 정식판 · Changelog: `docs/13-changelog.md` · 한계 안내: `docs/05-trd.md` 오탐 한계 안내 항목 참고
+> DAY 14 정식판 · V3 하이브리드 갱신 · Changelog: `docs/13-changelog.md` · LLM 채택 근거: `docs/17-adr-0002.md` · 한계 안내: `docs/05-trd.md` 오탐 한계 안내 항목 참고
