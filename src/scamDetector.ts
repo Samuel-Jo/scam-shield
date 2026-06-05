@@ -10,7 +10,52 @@
  *     실제 신고 사례 키워드를 참고해 확장하는 RAG식 구조(로컬 배열, 외부 호출 없음).
  *   - 콤보 보너스 확대: money+pressure(+8), offPlatform+tooGood(+12), impersonation+pressure(+8) 추가.
  *   - 임계값(45)·기존 단일 가중치 체계 유지 → 정상 문자 오탐 방지.
+ *
+ * DAY10 가드레일:
+ *   - 신호 excerpt(발췌)에 PII 마스킹 적용: 전화번호·계좌번호·주민번호·카드번호를 가운데 *** 처리.
+ *     분류 로직(점수·등급) 자체는 변경하지 않는다.
  */
+
+// ---------------------------------------------------------------------------
+// DAY10: PII 마스킹 인라인 구현
+// ---------------------------------------------------------------------------
+// guardrails.mjs 는 Node ESM 전용이므로 TS 환경에서는 동일 로직을 인라인으로 둔다.
+// 두 구현이 동일한 동작을 해야 함 — 규칙 변경 시 guardrails.mjs 와 함께 수정할 것.
+
+/**
+ * 텍스트 내 PII(개인식별정보)를 마스킹한다.
+ *   - 전화번호(01X-XXX(X)-XXXX): 가운데 국번을 **** 로
+ *   - 카드번호(4-4-4-4): 두 번째 그룹부터 ****
+ *   - 주민등록번호(6-7): 뒷 7자리를 *******
+ *   - 계좌번호(2~6자리-2~8자리-2~8자리): 가운데 그룹을 ***
+ */
+function maskPIIInternal(text: string): string {
+  let result = text;
+
+  // 카드번호: 4-4-4-4 형식 (가장 구체적 패턴 우선)
+  result = result.replace(/\b(\d{4})-(\d{4})-(\d{4})-(\d{4})\b/g, "$1-****-****-****");
+
+  // 주민등록번호: 6자리-7자리
+  result = result.replace(/\b(\d{6})-(\d{7})\b/g, "$1-*******");
+
+  // 전화번호: 01X-XXX(X)-XXXX
+  result = result.replace(
+    /\b(01\d)-(\d{3,4})-(\d{4})\b/g,
+    (_match: string, p1: string, p2: string, p3: string) =>
+      `${p1}-${"*".repeat(p2.length)}-${p3}`
+  );
+
+  // 계좌번호: 숫자(2~6)-숫자(2~8)-숫자(2~8) (전화/카드/주민번호 이후 남은 것만)
+  result = result.replace(
+    /\b(\d{2,6})-(\d{2,8})-(\d{2,8})\b/g,
+    (_match: string, p1: string, p2: string, p3: string) => {
+      if (_match.includes("*")) return _match;
+      return `${p1}-${"*".repeat(p2.length)}-${p3}`;
+    }
+  );
+
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // 공개 타입 정의
@@ -311,10 +356,12 @@ export function detectScam(text: string): ScamResult {
         }
       }
 
+      // [DAY10] 발췌에 PII 마스킹 적용 — 결과 화면에 사용자 전화/계좌가 원문 노출되지 않도록.
+      // 분류 점수 산정은 마스킹 전 원본 text 기준으로 이미 완료된 상태임.
       signals.push({
         type: rule.type,
         label: rule.label,
-        excerpt: extractExcerpt(text, firstMatch.index, firstMatch[0].length),
+        excerpt: maskPIIInternal(extractExcerpt(text, firstMatch.index, firstMatch[0].length)),
         why: rule.why,
         weight: effectiveWeight,
       });

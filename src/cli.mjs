@@ -8,6 +8,12 @@
  *   - 고위험 키워드 티어(highRiskPatterns / highRiskBonus): RAG식 KB 구조.
  *   - 콤보 보너스 확대: money+pressure(+8), offPlatform+tooGood(+12), impersonation+pressure(+8).
  *
+ * DAY10 가드레일:
+ *   - guardInput: 빈 입력 거부, 5000자 초과 자르기.
+ *   - guardOutput: 단정 표현 완화 + 면책 문구 추가.
+ *   - maskPII: 신호 발췌(excerpt)에서 전화번호·계좌번호 등 PII 마스킹.
+ *   - detectPromptInjection: 프롬프트 인젝션 의심 입력 경고.
+ *
  * 사용법:
  *   node src/cli.mjs "분석할 메시지"
  *   node src/cli.mjs          ← 인수 없으면 내장 예시 3개 자동 시연
@@ -21,6 +27,154 @@
 import { fileURLToPath } from "url";
 import path from "path";
 import { spawnSync } from "child_process";
+
+// ---------------------------------------------------------------------------
+// DAY10: 가드레일 인라인 구현
+// ---------------------------------------------------------------------------
+// guardrails.mjs 를 import 하지 않고 인라인으로 둔다.
+// (cli.mjs 는 standalone 원칙 유지, 외부 의존성 0)
+// 규칙 변경 시 guardrails.mjs 와 함께 수정할 것.
+
+/**
+ * PII(개인식별정보) 마스킹 — 결과 발췌에 사용자 정보가 원문 노출되지 않도록.
+ *   - 전화번호(01X-XXX(X)-XXXX): 가운데 국번 마스킹 → 010-****-5678
+ *   - 카드번호(4-4-4-4): 두 번째 그룹부터 **** → 1234-****-****-****
+ *   - 주민등록번호(6-7): 뒷 7자리 마스킹 → 801225-*******
+ *   - 계좌번호(2~6-2~8-2~8): 가운데 그룹 마스킹
+ * @param {string} text
+ * @returns {string}
+ */
+function maskPII(text) {
+  if (typeof text !== "string") return text;
+  let result = text;
+
+  // 카드번호: 4-4-4-4 형식 (가장 구체적 패턴 우선)
+  result = result.replace(/\b(\d{4})-(\d{4})-(\d{4})-(\d{4})\b/g, "$1-****-****-****");
+
+  // 주민등록번호: 6자리-7자리
+  result = result.replace(/\b(\d{6})-(\d{7})\b/g, "$1-*******");
+
+  // 전화번호: 01X-XXX(X)-XXXX
+  result = result.replace(
+    /\b(01\d)-(\d{3,4})-(\d{4})\b/g,
+    (_match, p1, p2, p3) => `${p1}-${"*".repeat(p2.length)}-${p3}`
+  );
+
+  // 계좌번호: 숫자(2~6)-숫자(2~8)-숫자(2~8) (전화/카드/주민번호 처리 이후 남은 것)
+  result = result.replace(
+    /\b(\d{2,6})-(\d{2,8})-(\d{2,8})\b/g,
+    (_match, p1, p2, p3) => {
+      if (_match.includes("*")) return _match;
+      return `${p1}-${"*".repeat(p2.length)}-${p3}`;
+    }
+  );
+
+  return result;
+}
+
+/**
+ * 입력 검사 — 분석 전처리.
+ *   - 빈/공백만: ok: false, 거부 메시지
+ *   - 5000자 초과: ok: true, 잘린 텍스트
+ *   - 정상: ok: true, 원본
+ * @param {string} text
+ * @returns {{ ok: boolean, text: string, note: string|null }}
+ */
+function guardInput(text) {
+  if (text === null || text === undefined) {
+    return { ok: false, text: "", note: "입력이 비어 있습니다. 분석할 메시지를 입력해 주세요." };
+  }
+  const s = String(text);
+  if (s.trim().length === 0) {
+    return { ok: false, text: "", note: "입력이 비어 있습니다. 분석할 메시지를 입력해 주세요." };
+  }
+  const MAX = 5000;
+  if (s.length > MAX) {
+    return { ok: true, text: s.slice(0, MAX), note: `입력이 ${MAX}자를 초과해 앞 ${MAX}자만 분석합니다.` };
+  }
+  return { ok: true, text: s, note: null };
+}
+
+/**
+ * 출력 검증 및 보강 — 분석 후처리.
+ *   - 과도한 단정 표현 완화("100% 사기" 등)
+ *   - 면책 고정 문구 항상 추가
+ * @param {object} result
+ * @returns {object}
+ */
+function guardOutput(result) {
+  if (!result || typeof result !== "object") return result;
+
+  const DISCLAIMER = "최종 판단은 사용자 몫이며, 의심되면 공식 기관에 직접 확인하세요.";
+
+  const ASSERTIVE_PATTERNS = [
+    /100\s*%\s*(사기|위험|확실)/,
+    /확실(히|하게)\s*(사기|위험)/,
+    /무조건\s*사기/,
+    /반드시\s*사기/,
+    /완전히?\s*사기/,
+    /사기\s*(임이\s*)?확실/,
+  ];
+
+  let { oneLineWarning } = result;
+
+  // 단정 표현 감지 및 완화
+  const hasAssertive = ASSERTIVE_PATTERNS.some((p) => p.test(oneLineWarning));
+  if (hasAssertive) {
+    oneLineWarning = oneLineWarning
+      .replace(/100\s*%\s*(사기|위험|확실)/g, "높은 가능성으로 사기 의심")
+      .replace(/확실(히|하게)\s*(사기|위험)/g, "사기 의심")
+      .replace(/무조건\s*사기/g, "사기 의심")
+      .replace(/반드시\s*사기/g, "사기 의심")
+      .replace(/완전히?\s*사기/g, "사기 의심")
+      .replace(/사기\s*(임이\s*)?확실/g, "사기 의심");
+  }
+
+  // 면책 문구 추가 (중복 방지)
+  if (!oneLineWarning.includes(DISCLAIMER)) {
+    oneLineWarning = oneLineWarning + " " + DISCLAIMER;
+  }
+
+  return { ...result, oneLineWarning };
+}
+
+/**
+ * 프롬프트 인젝션 의심 패턴 탐지.
+ * V1 규칙 기반에는 직접 영향 없음. V2 LLM 도입 대비 + 입력단 방어 계층.
+ * @param {string} text
+ * @returns {{ injected: boolean, hits: string[] }}
+ */
+function detectPromptInjection(text) {
+  if (typeof text !== "string") return { injected: false, hits: [] };
+
+  const INJECTION_PATTERNS = [
+    { pattern: /이전\s*(지시|명령|규칙|설정)\s*(무시|잊어|삭제)/i, label: "이전 지시 무시" },
+    { pattern: /앞(의|에서)\s*(지시|명령|규칙)\s*(무시|잊어|삭제)/i, label: "앞의 지시 무시" },
+    { pattern: /시스템\s*프롬프트/i, label: "시스템 프롬프트 언급" },
+    { pattern: /system\s*prompt/i, label: "system prompt 언급" },
+    { pattern: /너는\s*이제/i, label: "역할 전환 유도(너는 이제)" },
+    { pattern: /지금부터\s*너는/i, label: "역할 전환 유도(지금부터 너는)" },
+    { pattern: /당신은\s*이제/i, label: "역할 전환 유도(당신은 이제)" },
+    { pattern: /ignore\s+previous/i, label: "ignore previous (영문)" },
+    { pattern: /disregard\s+(all|your|the|instructions|rules)/i, label: "disregard instructions (영문)" },
+    { pattern: /forget\s+(your|all|the)\s+instructions/i, label: "forget instructions (영문)" },
+    { pattern: /새로운\s*지시/i, label: "새로운 지시 시도" },
+    { pattern: /지시를\s*(바꿔|변경|수정)/i, label: "지시 변경 시도" },
+    { pattern: /규칙을\s*무시/i, label: "규칙 무시 시도" },
+    { pattern: /안전하다고\s*(답|말|출력)/i, label: "결과 조작 유도(안전하다고)" },
+    { pattern: /정상이라고\s*(답|말|출력)/i, label: "결과 조작 유도(정상이라고)" },
+    { pattern: /사기가\s*아니(라고|라고\s*해)/i, label: "결과 조작 유도(사기가 아니라고)" },
+    { pattern: /act\s+as\s+(if|a|an)/i, label: "act as (역할 변환, 영문)" },
+    { pattern: /jailbreak/i, label: "jailbreak 시도 (영문)" },
+    { pattern: /DAN\b/i, label: "DAN 프롬프트 시도 (영문)" },
+  ];
+
+  const hits = [];
+  for (const { pattern, label } of INJECTION_PATTERNS) {
+    if (pattern.test(text)) hits.push(label);
+  }
+  return { injected: hits.length > 0, hits };
+}
 
 // ---------------------------------------------------------------------------
 // 규칙 정의 (scamDetector.ts 와 동일)
@@ -202,6 +356,8 @@ function buildSafeSummary(signals) {
  *
  * 임계값: >= 70 → 매우위험 / >= 45 → 위험 / >= 20 → 주의 / else → 안전
  *
+ * [DAY10] 신호 excerpt 에 PII 마스킹 적용 (분류 점수는 원본 기준 유지).
+ *
  * @param {string} text
  * @returns {{ riskScore: number, level: string, signals: object[], oneLineWarning: string, safeSummary: string }}
  */
@@ -233,10 +389,11 @@ function detectScam(text) {
         }
       }
 
+      // [DAY10] 발췌에 PII 마스킹 적용 — 분류 점수 산정은 원본 text 기준으로 이미 완료
       signals.push({
         type: rule.type,
         label: rule.label,
-        excerpt: extractExcerpt(text, firstMatch.index, firstMatch[0].length),
+        excerpt: maskPII(extractExcerpt(text, firstMatch.index, firstMatch[0].length)),
         why: rule.why,
         weight: effectiveWeight,
       });
@@ -334,9 +491,9 @@ const DEMO_CASES = [
 // ---------------------------------------------------------------------------
 
 // process.argv: [node, cli.mjs, ...args]
-const userInput = process.argv[2];
+const rawInput = process.argv[2];
 
-if (userInput === "--eval") {
+if (rawInput === "--eval") {
   // --eval 플래그: evalRunner.mjs 를 호출해 Harness 평가 실행
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
@@ -354,20 +511,48 @@ if (userInput === "--eval") {
     console.error("evalRunner 실행 중 오류가 발생했습니다.");
     process.exit(evalResult.status ?? 1);
   }
-} else if (userInput === undefined || userInput.trim() === "") {
-  // 인수 없으면 사용법 + 내장 예시 자동 시연
-  console.log("AI 사기 메시지 방패 V2 — 규칙 기반 탐지 엔진");
+} else if (rawInput === undefined) {
+  // 인수 없으면 사용법 + 내장 예시 자동 시연 (빈 문자열은 아래 else 로 가서 guardInput 거부)
+  console.log("AI 사기 메시지 방패 V2 — 규칙 기반 탐지 엔진 (DAY10 가드레일 적용)");
   console.log("사용법: node src/cli.mjs \"분석할 메시지\"");
   console.log("       node src/cli.mjs --eval   ← Harness 평가 실행\n");
   console.log("인수가 없어 내장 예시 3개를 자동 시연합니다.\n");
 
   for (const demo of DEMO_CASES) {
     console.log(`>>> ${demo.label}`);
-    const result = detectScam(demo.text);
+    const rawResult = detectScam(demo.text);
+    const result = guardOutput(rawResult);
     printResult(demo.text, result);
   }
 } else {
-  // 인수가 있으면 해당 텍스트만 분석
-  const result = detectScam(userInput.trim());
-  printResult(userInput.trim(), result);
+  // [DAY10] 가드레일 파이프라인: 입력 검사 → 인젝션 탐지 → 분석 → 출력 검증
+
+  // 1단계: 입력 검사 (guardInput)
+  const inputGuard = guardInput(rawInput);
+  if (!inputGuard.ok) {
+    // 빈 입력 등 거부
+    console.error(`[입력 오류] ${inputGuard.note}`);
+    process.exit(1);
+  }
+  if (inputGuard.note) {
+    // 길이 초과 알림
+    console.warn(`[입력 알림] ${inputGuard.note}`);
+  }
+
+  const safeInput = inputGuard.text;
+
+  // 2단계: 프롬프트 인젝션 탐지 (detectPromptInjection)
+  const injectionCheck = detectPromptInjection(safeInput);
+  if (injectionCheck.injected) {
+    console.warn(`[보안 경고] 프롬프트 인젝션 의심 패턴이 탐지됐습니다: ${injectionCheck.hits.join(", ")}`);
+    console.warn("           분석은 계속하지만, 결과를 신중하게 판단하세요.\n");
+  }
+
+  // 3단계: 분석 (detectScam — excerpt 에 PII 마스킹 포함)
+  const rawResult = detectScam(safeInput);
+
+  // 4단계: 출력 검증 (guardOutput — 단정 완화 + 면책 문구)
+  const result = guardOutput(rawResult);
+
+  printResult(safeInput, result);
 }
