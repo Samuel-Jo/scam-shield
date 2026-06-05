@@ -109,6 +109,11 @@ export interface ScamResult {
   oneLineWarning: string;
   /** 탐지 요약 한 줄 */
   safeSummary: string;
+  /**
+   * DAY13: 위험 등급별 추천 행동 안내.
+   * 분류 로직(점수·등급)에는 영향 없이 결과 표시 목적으로만 사용됩니다.
+   */
+  actionAdvice: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -305,6 +310,29 @@ function buildSafeSummary(signals: RiskSignal[]): string {
 }
 
 // ---------------------------------------------------------------------------
+// 내부 헬퍼: 추천 행동 안내 생성 (DAY13)
+// ---------------------------------------------------------------------------
+
+/**
+ * DAY13: 위험 등급에 따라 사용자가 즉시 취해야 할 행동을 한 줄로 안내합니다.
+ * 분류 로직(점수·등급)은 건드리지 않으며 출력 전용입니다.
+ *
+ * - 매우위험/위험: 즉각 차단·신고 행동 안내
+ * - 주의: 출처 재확인 권고
+ * - 안전: 일반 주의 사항 안내
+ */
+function buildActionAdvice(level: RiskLevel): string {
+  if (level === "매우위험" || level === "위험") {
+    return "응답·송금·링크 클릭을 멈추고, 기관/지인은 공식 번호로 직접 확인하세요. 이미 입력했다면 즉시 차단·신고(112/118)하세요.";
+  }
+  if (level === "주의") {
+    return "바로 응하지 말고 출처를 한 번 더 확인하세요. 모르는 링크·계좌는 누르거나 보내지 마세요.";
+  }
+  // 안전
+  return "특이 신호는 없지만, 모르는 사람의 송금·링크 요구는 항상 의심하세요.";
+}
+
+// ---------------------------------------------------------------------------
 // 공개 함수: detectScam
 // ---------------------------------------------------------------------------
 
@@ -412,6 +440,8 @@ export function detectScam(text: string): ScamResult {
 
   const oneLineWarning = buildOneLineWarning(level, signals);
   const safeSummary = buildSafeSummary(signals);
+  // DAY13: 분류 완료 후 등급만 참조해 행동 안내 생성 — 점수·등급에는 영향 없음
+  const actionAdvice = buildActionAdvice(level);
 
-  return { riskScore, level, signals, oneLineWarning, safeSummary };
+  return { riskScore, level, signals, oneLineWarning, safeSummary, actionAdvice };
 }
