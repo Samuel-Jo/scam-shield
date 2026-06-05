@@ -7,7 +7,16 @@
  * 사용법:
  *   node src/cli.mjs "분석할 메시지"
  *   node src/cli.mjs          ← 인수 없으면 내장 예시 3개 자동 시연
+ *   node src/cli.mjs --eval   ← DAY6~7 Harness 평가 실행 (evalRunner.mjs 호출)
  */
+
+// ---------------------------------------------------------------------------
+// DAY6~7: --eval 플래그 처리 (import 는 최상단에)
+// ---------------------------------------------------------------------------
+
+import { fileURLToPath } from "url";
+import path from "path";
+import { spawnSync } from "child_process";
 
 // ---------------------------------------------------------------------------
 // 규칙 정의 (scamDetector.ts 와 동일)
@@ -280,10 +289,29 @@ const DEMO_CASES = [
 // process.argv: [node, cli.mjs, ...args]
 const userInput = process.argv[2];
 
-if (userInput === undefined || userInput.trim() === "") {
+if (userInput === "--eval") {
+  // --eval 플래그: evalRunner.mjs 를 호출해 Harness 평가 실행
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const evalRunnerPath = path.resolve(__dirname, "evalRunner.mjs");
+
+  console.log("AI 사기 메시지 방패 V1 — Harness 평가 모드");
+  console.log("evalRunner.mjs 를 실행합니다...\n");
+
+  const evalResult = spawnSync(process.execPath, [evalRunnerPath], {
+    stdio: "inherit",
+    encoding: "utf-8",
+  });
+
+  if (evalResult.status !== 0) {
+    console.error("evalRunner 실행 중 오류가 발생했습니다.");
+    process.exit(evalResult.status ?? 1);
+  }
+} else if (userInput === undefined || userInput.trim() === "") {
   // 인수 없으면 사용법 + 내장 예시 자동 시연
   console.log("AI 사기 메시지 방패 V1 — 규칙 기반 탐지 엔진");
-  console.log("사용법: node src/cli.mjs \"분석할 메시지\"\n");
+  console.log("사용법: node src/cli.mjs \"분석할 메시지\"");
+  console.log("       node src/cli.mjs --eval   ← Harness 평가 실행\n");
   console.log("인수가 없어 내장 예시 3개를 자동 시연합니다.\n");
 
   for (const demo of DEMO_CASES) {

@@ -1,0 +1,130 @@
+[
+  {
+    "id": "case-b01",
+    "tag": "Basic",
+    "text": "금감원입니다. 귀하의 계좌가 범죄에 연루되어 즉시 확인이 필요합니다. 지금 접속하세요: https://geumgam-check.xyz",
+    "expectedLabel": "사기",
+    "expectedSignals": ["url", "impersonation", "pressure", "money"],
+    "note": "url(18)+impersonation(20)+pressure(16)+money(22)+콤보url+money(10) = 86점. 명백한 사기."
+  },
+  {
+    "id": "case-b02",
+    "tag": "Basic",
+    "text": "안전결제 말고 직거래로 하시면 급처 반값에 드려요. 먼저 선입금 보내주시면 주소 알려드릴게요.",
+    "expectedLabel": "사기",
+    "expectedSignals": ["offPlatform", "tooGood", "money"],
+    "note": "offPlatform(12)+tooGood(12)+money(22) = 46점. 선입금 직거래 전형 패턴."
+  },
+  {
+    "id": "case-b03",
+    "tag": "Basic",
+    "text": "고객센터입니다. 계정 보안을 위해 지금 바로 OTP 인증번호를 알려주세요.",
+    "expectedLabel": "사기",
+    "expectedSignals": ["impersonation", "pressure", "personalInfo"],
+    "note": "impersonation(20)+pressure(16)+personalInfo(22)+콤보사칭+개인정보(12) = 70점."
+  },
+  {
+    "id": "case-b04",
+    "tag": "Basic",
+    "text": "원금보장 100% 고수익 투자 기회입니다. 지금 입금하시면 수익보장 드립니다. 계좌번호: 123-456-7890",
+    "expectedLabel": "사기",
+    "expectedSignals": ["tooGood", "money", "pressure"],
+    "note": "tooGood(12)+money(22)+pressure(16)+콤보 없음 = 50점. 투자 사기 전형."
+  },
+  {
+    "id": "case-b05",
+    "tag": "Basic",
+    "text": "오늘 점심 같이 먹을래요? 12시에 학교 앞 식당에서 봐요.",
+    "expectedLabel": "정상",
+    "expectedSignals": [],
+    "note": "신호 키워드 없음. 위험 점수 0. 명백한 정상 문자."
+  },
+  {
+    "id": "case-b06",
+    "tag": "Basic",
+    "text": "CJ대한통운입니다. 고객님의 택배(운송장번호: 1234567890)가 오늘 오후 3시에 배송 완료되었습니다.",
+    "expectedLabel": "정상",
+    "expectedSignals": [],
+    "note": "링크 없음, 개인정보 요구 없음, 압박 없음. 위험 점수 0. 단, '택배' 키워드로 impersonation 탐지될 수 있어 경계 케이스."
+  },
+  {
+    "id": "case-e01",
+    "tag": "Edge",
+    "text": "당장 연락 안 하면 영장 발부됩니다.",
+    "expectedLabel": "사기",
+    "expectedSignals": ["pressure"],
+    "note": "pressure(16)만 탐지 → 위험 점수 16, 임계값 45 미만. V1 엔진이 '정상'으로 오판할 수 있음. 단독 신호라 미탐 유발 — V1 구조적 한계."
+  },
+  {
+    "id": "case-e02",
+    "tag": "Edge",
+    "text": "야, 내 계좌로 회비 보냈어? 아직 안 들어왔는데 확인해줘.",
+    "expectedLabel": "정상",
+    "expectedSignals": ["money"],
+    "note": "money 신호(계좌) 탐지 → 위험 점수 22, 임계값 미만이라 정상 판정. '계좌' 단어 단독 탐지 시 오탐 가능성 — V1 경계 케이스."
+  },
+  {
+    "id": "case-e03",
+    "tag": "Edge",
+    "text": "이거 확인해봐: bit.ly/abc123",
+    "expectedLabel": "사기",
+    "expectedSignals": ["url"],
+    "note": "url(18)만 탐지 → 위험 점수 18, 임계값 미만. V1은 정상 판정. 단축 URL 단독 신호라 임계값 미달 — V1 구조적 한계."
+  },
+  {
+    "id": "case-e04",
+    "tag": "Edge",
+    "text": "부동산 계약서 관련해서 중개 수수료 30만원 이체 부탁드립니다. 계좌는 아래와 같습니다.",
+    "expectedLabel": "정상",
+    "expectedSignals": ["money"],
+    "note": "money(수수료, 계좌, 이체) 탐지 → 위험 점수 22. 정상 거래 문자이나 money 신호 복수 포함으로 오탐 위험."
+  },
+  {
+    "id": "case-e05",
+    "tag": "Edge",
+    "text": "건강보험공단입니다. 건강검진 예약 안내 페이지를 확인하세요: https://nhis.or.kr/checkup",
+    "expectedLabel": "정상",
+    "expectedSignals": ["url"],
+    "note": "url(18) 탐지. '건강보험공단'은 V1 impersonation 패턴에 미포함 → 점수 18, 임계값 45 미만으로 정상 판정. 실제로도 정상 공공기관 안내. V1이 공공기관 URL을 잘 구분하는지 보여주는 경계 케이스."
+  },
+  {
+    "id": "case-s01",
+    "tag": "Safety",
+    "text": "수사관입니다. 귀하 명의 계좌가 범죄에 사용되었습니다. 즉시 주민번호와 비밀번호를 알려주셔야 체포를 면할 수 있습니다.",
+    "expectedLabel": "사기",
+    "expectedSignals": ["impersonation", "pressure", "personalInfo", "money"],
+    "note": "impersonation(20)+pressure(16)+personalInfo(22)+money(22)+콤보사칭+개인정보(12) = 92점. 최고위험 패턴."
+  },
+  {
+    "id": "case-s02",
+    "tag": "Safety",
+    "text": "비공개 리딩방입니다. 카톡으로 오시면 무조건 고수익 정보 드립니다. 원금보장, 수익보장 100%입니다.",
+    "expectedLabel": "사기",
+    "expectedSignals": ["offPlatform", "tooGood"],
+    "note": "offPlatform(12)+tooGood(12) = 24점. 임계값 미만으로 V1 미탐 가능. Safety 케이스 — V2 LLM 보강 대상."
+  },
+  {
+    "id": "case-s03",
+    "tag": "Safety",
+    "text": "엄마 나야. 핸드폰이 고장났어. 지금 당장 급하게 송금이 필요해. 이 계좌로 50만원만 보내줘: 999-0000-0000",
+    "expectedLabel": "사기",
+    "expectedSignals": ["pressure", "money"],
+    "note": "pressure(16)+money(22) = 38점. 임계값 미만으로 V1 미탐. 가족 사칭 전형 패턴 — Safety 케이스."
+  },
+  {
+    "id": "case-s04",
+    "tag": "Safety",
+    "text": "택배 미수령으로 반송 처리됩니다. 지금 바로 주소를 확인하세요: http://tinyurl.com/pkg0000",
+    "expectedLabel": "사기",
+    "expectedSignals": ["url", "impersonation", "pressure"],
+    "note": "url(18)+impersonation(20)+pressure(16)+콤보없음 = 54점. 임계값 초과. V1 정상 탐지."
+  },
+  {
+    "id": "case-s05",
+    "tag": "Safety",
+    "text": "은행 고객센터입니다. 보안 점검을 위해 보안카드 앞 2자리와 CVC 번호를 입력해주세요.",
+    "expectedLabel": "사기",
+    "expectedSignals": ["impersonation", "personalInfo"],
+    "note": "impersonation(20)+personalInfo(22)+콤보사칭+개인정보(12) = 54점. 임계값 초과. 은행 사칭 + 보안카드·CVC 탈취 패턴."
+  }
+]
