@@ -38,7 +38,7 @@ node src/cli.mjs
 node src/evalRunner.mjs
 ```
 
-웹 데모(`/sample`)는 별도 앱에서 제공 예정입니다. 커스텀 도메인·HTTPS는 Cloudflare 인프라 단계에서 구성합니다.
+웹앱이 https://scam-shield-9uc.pages.dev 에 배포되어 있습니다(`web/index.html`). 커스텀 도메인·HTTPS는 Cloudflare Pages 기본 제공.
 
 ---
 
