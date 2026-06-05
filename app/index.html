@@ -453,6 +453,151 @@
 
     .safe-box span { font-size: 1.8rem; display: block; margin-bottom: 6px; }
 
+    /* ── 최종 종합 판정 카드 ─────────────────────────────── */
+    .final-verdict {
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      border: 2px solid transparent;
+    }
+
+    .final-verdict-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      opacity: 0.75;
+      margin-bottom: 6px;
+    }
+
+    .final-verdict-label {
+      font-size: 1.35rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+
+    .final-verdict-mismatch {
+      font-size: 0.85rem;
+      font-weight: 600;
+      opacity: 0.85;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    /* ── AI 문맥 판단 카드 ───────────────────────────────── */
+    .ai-section {
+      background: #f0f4ff;
+      border: 1.5px solid #c7d2fe;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+
+    .ai-section-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #3730a3;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+    }
+
+    .ai-label-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+
+    .ai-verdict-badge {
+      font-size: 0.88rem;
+      font-weight: 700;
+      padding: 3px 12px;
+      border-radius: 20px;
+    }
+
+    .ai-verdict-scam { background: #fee2e2; color: #991b1b; }
+    .ai-verdict-safe { background: #dcfce7; color: #166534; }
+    .ai-verdict-unknown { background: #f1f5f9; color: #475569; }
+
+    .ai-confidence {
+      font-size: 0.82rem;
+      color: #4338ca;
+      font-weight: 600;
+    }
+
+    .ai-reason {
+      font-size: 0.87rem;
+      color: #1e1b4b;
+      line-height: 1.6;
+      margin-bottom: 6px;
+    }
+
+    .ai-model-tag {
+      font-size: 0.73rem;
+      color: #6366f1;
+      opacity: 0.75;
+    }
+
+    .ai-loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #4338ca;
+      font-size: 0.87rem;
+      font-weight: 600;
+      padding: 4px 0;
+    }
+
+    .ai-loading-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2.5px solid #c7d2fe;
+      border-top-color: #4338ca;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .ai-error {
+      font-size: 0.84rem;
+      color: #92400e;
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      border-radius: 6px;
+      padding: 8px 12px;
+    }
+
+    .rule-section-header {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-sub);
+      letter-spacing: 0.04em;
+      margin-bottom: 10px;
+    }
+
+    .btn-analyze:disabled {
+      background: #93c5fd;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .hybrid-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+      border-radius: 6px;
+      padding: 5px 11px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin-top: 12px;
+    }
+
     /* 면책 문구 */
     .disclaimer {
       margin-top: 18px;
@@ -514,6 +659,7 @@
   <div class="header-icon">🛡️</div>
   <h1 class="header-title">AI 사기 메시지 방패</h1>
   <p class="header-sub">의심스러운 문자·링크를 붙여넣으면 위험도와 이유를 알려드립니다</p>
+  <p class="header-sub" style="margin-top:6px;font-size:0.82rem;">규칙 기반 + AI(LLM) 하이브리드 분석 &middot; Cloudflare Workers AI(Llama 3.3 70B)</p>
 </header>
 
 <!-- ── 메인 ──────────────────────────────────────────── -->
@@ -573,25 +719,43 @@
       </div>
 
       <div class="result-body">
-        <!-- 한 줄 경고 -->
-        <div class="warning-box" id="warningBox" role="alert"></div>
 
-        <!-- 추천 행동 -->
+        <!-- 1. 최종 종합 판정 -->
+        <div class="final-verdict" id="finalVerdictBox" role="alert">
+          <div class="final-verdict-title">🎯 최종 종합 판정</div>
+          <div class="final-verdict-label" id="finalVerdictLabel">-</div>
+          <div class="final-verdict-mismatch" id="finalVerdictMismatch" style="display:none"></div>
+        </div>
+
+        <!-- 2. 규칙 분석 -->
+        <div style="margin-bottom:14px;">
+          <div class="rule-section-header">📋 규칙 분석</div>
+          <!-- 한 줄 경고 -->
+          <div class="warning-box" id="warningBox" role="alert"></div>
+          <!-- 탐지된 신호 -->
+          <div id="signalsSection">
+            <div class="signals-title">탐지된 위험 신호</div>
+            <div class="signal-list" id="signalList"></div>
+          </div>
+          <!-- 안전 박스 (신호 없을 때) -->
+          <div class="safe-box" id="safeBox" style="display:none">
+            <span>✅</span>
+            뚜렷한 사기 신호가 발견되지 않았습니다.
+          </div>
+        </div>
+
+        <!-- 3. AI 문맥 판단 -->
+        <div class="ai-section" id="aiSection">
+          <div class="ai-section-title">🤖 AI 문맥 판단</div>
+          <div id="aiContent">
+            <!-- JS로 채워짐 -->
+          </div>
+        </div>
+
+        <!-- 4. 추천 행동 -->
         <div class="action-box" id="actionBox">
           <div class="action-title">추천 행동</div>
           <div class="action-text" id="actionText"></div>
-        </div>
-
-        <!-- 탐지된 신호 -->
-        <div id="signalsSection">
-          <div class="signals-title">탐지된 위험 신호</div>
-          <div class="signal-list" id="signalList"></div>
-        </div>
-
-        <!-- 안전 박스 (신호 없을 때) -->
-        <div class="safe-box" id="safeBox" style="display:none">
-          <span>✅</span>
-          뚜렷한 사기 신호가 발견되지 않았습니다.
         </div>
 
         <!-- 면책 문구 -->
@@ -604,8 +768,8 @@
 
 <!-- ── 푸터 ──────────────────────────────────────────── -->
 <footer>
-  <p>규칙 기반 데모 엔진 · 16일 바이브코딩 프로젝트</p>
-  <p>한계: 맥락 이해 못 함 (향후 LLM 연동 예정)</p>
+  <p>규칙 기반 + Cloudflare Workers AI(Llama 3.3) 하이브리드 &middot; 16일 바이브코딩 프로젝트</p>
+  <p>규칙은 오프라인, AI 문맥 판단은 서버 호출. 맥락 일부 오류 가능 &mdash; 최종 판단은 사용자 몫.</p>
   <p>
     <a href="https://github.com/Samuel-Jo/scam-shield" target="_blank" rel="noopener">
       GitHub: Samuel-Jo/scam-shield
@@ -1055,9 +1219,44 @@ var LEVEL_WARN_BG = {
   "매우위험":{ bg: "var(--critical-bg)", border: "var(--critical)", color: "var(--critical)" },
 };
 
-// ── 분석 실행 ─────────────────────────────────────────────
+// ── AI 호출 ────────────────────────────────────────────────
+var AI_ENDPOINT = "https://16d-roadmap-api.aiautou.workers.dev/api/scam-check";
+var AI_TIMEOUT_MS = 8000;
+
+function fetchAiVerdict(text) {
+  return new Promise(function(resolve) {
+    var controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = setTimeout(function() {
+      if (controller) controller.abort();
+      resolve({ ok: false, error: "timeout" });
+    }, AI_TIMEOUT_MS);
+
+    var fetchOptions = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text }),
+    };
+    if (controller) fetchOptions.signal = controller.signal;
+
+    fetch(AI_ENDPOINT, fetchOptions)
+      .then(function(res) {
+        clearTimeout(timer);
+        if (!res.ok) return resolve({ ok: false, error: "http_" + res.status });
+        return res.json().then(function(data) {
+          resolve({ ok: true, data: data });
+        });
+      })
+      .catch(function(err) {
+        clearTimeout(timer);
+        resolve({ ok: false, error: err && err.name === "AbortError" ? "timeout" : "network" });
+      });
+  });
+}
+
+// ── 분석 실행 (하이브리드) ─────────────────────────────────
 function doAnalyze() {
   var raw = document.getElementById("msg").value;
+  var btnAnalyze = document.getElementById("btnAnalyze");
 
   // 에러 초기화
   var errEl = document.getElementById("inputError");
@@ -1087,24 +1286,70 @@ function doAnalyze() {
     badge.classList.add("visible");
   }
 
-  // 3단계: 탐지
+  // 3단계: 규칙 탐지 (즉시)
   var rawResult = detectScam(safeInput);
 
   // 4단계: 출력 검증
-  var result = guardOutput(rawResult);
+  var ruleResult = guardOutput(rawResult);
 
-  // 결과 렌더링
-  renderResult(result);
+  // 5단계: 규칙 결과 먼저 표시 (AI 로딩 중)
+  btnAnalyze.disabled = true;
+  btnAnalyze.textContent = "분석 중…";
+  renderResult(ruleResult, null, "loading");
+
+  // 6단계: AI 비동기 호출
+  fetchAiVerdict(safeInput).then(function(aiResp) {
+    btnAnalyze.disabled = false;
+    btnAnalyze.textContent = "분석하기";
+
+    if (!aiResp.ok || !aiResp.data || aiResp.data.label === null || aiResp.data.label === undefined) {
+      renderResult(ruleResult, null, "error");
+    } else {
+      renderResult(ruleResult, aiResp.data, "done");
+    }
+  });
 }
 
-function renderResult(result) {
-  var style    = LEVEL_STYLE[result.level]   || LEVEL_STYLE["안전"];
-  var warnStyle = LEVEL_WARN_BG[result.level] || LEVEL_WARN_BG["안전"];
+// ── 하이브리드 최종 판정 계산 ──────────────────────────────
+// ruleResult, aiData(null 가능), aiState: "loading"|"error"|"done"
+// 반환: { finalLabel, isMismatch, mismatchNote }
+function calcHybridVerdict(ruleResult, aiData, aiState) {
+  var ruleLabel = ruleResult.riskScore >= 45 ? "사기" : "정상";
+
+  if (aiState === "loading") {
+    return { finalLabel: ruleLabel + " (AI 확인 중)", isMismatch: false, mismatchNote: "" };
+  }
+  if (aiState === "error" || !aiData || !aiData.label) {
+    return { finalLabel: ruleLabel, isMismatch: false, mismatchNote: "" };
+  }
+
+  var aiLabel = aiData.label; // "사기" | "정상"
+  if (aiLabel !== "사기" && aiLabel !== "정상") {
+    return { finalLabel: ruleLabel, isMismatch: false, mismatchNote: "" };
+  }
+
+  if (ruleLabel === aiLabel) {
+    return { finalLabel: aiLabel, isMismatch: false, mismatchNote: "" };
+  }
+
+  // 불일치: AI 라벨 신뢰
+  var note = "";
+  if (ruleLabel === "정상" && aiLabel === "사기") {
+    note = "규칙은 '정상'으로 봤지만, AI가 문맥상 '사기'로 판단했습니다. AI 판정을 우선합니다.";
+  } else {
+    note = "규칙은 '사기'로 봤지만, AI가 문맥상 '정상'으로 판단했습니다. AI 판정을 우선합니다.";
+  }
+  return { finalLabel: aiLabel, isMismatch: true, mismatchNote: note };
+}
+
+function renderResult(ruleResult, aiData, aiState) {
+  var style    = LEVEL_STYLE[ruleResult.level]   || LEVEL_STYLE["안전"];
+  var warnStyle = LEVEL_WARN_BG[ruleResult.level] || LEVEL_WARN_BG["안전"];
 
   // 점수 원형
   var circle = document.getElementById("scoreCircle");
   circle.className = "score-circle " + style.cls;
-  document.getElementById("scoreNumber").textContent = result.riskScore;
+  document.getElementById("scoreNumber").textContent = ruleResult.riskScore;
 
   // 등급 배지
   var badge = document.getElementById("levelBadge");
@@ -1113,14 +1358,14 @@ function renderResult(result) {
 
   // 게이지
   var fill = document.getElementById("gaugeFill");
-  fill.style.width = result.riskScore + "%";
+  fill.style.width = ruleResult.riskScore + "%";
   fill.className = "gauge-fill " + style.gauge;
 
   // 한 줄 경고 (면책 문구 분리)
   var DISCLAIMER = "최종 판단은 사용자 몫이며, 의심되면 공식 기관에 직접 확인하세요.";
-  var warnText = result.oneLineWarning;
+  var warnText = ruleResult.oneLineWarning;
   var disclaimerText = "";
-  if (warnText.includes(DISCLAIMER)) {
+  if (warnText.indexOf(DISCLAIMER) !== -1) {
     var idx = warnText.indexOf(DISCLAIMER);
     disclaimerText = DISCLAIMER;
     warnText = warnText.slice(0, idx).trim();
@@ -1133,7 +1378,7 @@ function renderResult(result) {
   warningBox.style.color         = warnStyle.color;
 
   // 추천 행동
-  document.getElementById("actionText").textContent = result.actionAdvice;
+  document.getElementById("actionText").textContent = ruleResult.actionAdvice;
 
   // 신호 목록
   var signalsSection = document.getElementById("signalsSection");
@@ -1142,15 +1387,15 @@ function renderResult(result) {
 
   signalList.innerHTML = "";
 
-  if (result.signals.length === 0) {
+  if (ruleResult.signals.length === 0) {
     signalsSection.style.display = "none";
     safeBox.style.display        = "block";
   } else {
     signalsSection.style.display = "block";
     safeBox.style.display        = "none";
 
-    for (var i = 0; i < result.signals.length; i++) {
-      var sig  = result.signals[i];
+    for (var i = 0; i < ruleResult.signals.length; i++) {
+      var sig  = ruleResult.signals[i];
       var item = document.createElement("div");
       item.className = "signal-item";
       item.innerHTML =
@@ -1165,6 +1410,73 @@ function renderResult(result) {
     }
   }
 
+  // ── AI 문맥 판단 섹션 렌더링 ───────────────────────────
+  var aiContent = document.getElementById("aiContent");
+
+  if (aiState === "loading") {
+    aiContent.innerHTML =
+      '<div class="ai-loading">' +
+        '<div class="ai-loading-spinner"></div>' +
+        '<span>AI가 문맥을 분석 중…</span>' +
+      '</div>';
+  } else if (aiState === "error" || !aiData || !aiData.label) {
+    aiContent.innerHTML =
+      '<div class="ai-error">AI 문맥 분석을 불러오지 못했어요. 규칙 분석 결과만 표시됩니다.</div>';
+  } else {
+    var aiLabelCls = aiData.label === "사기" ? "ai-verdict-scam"
+                   : aiData.label === "정상" ? "ai-verdict-safe"
+                   : "ai-verdict-unknown";
+    var confText = (aiData.confidence !== null && aiData.confidence !== undefined)
+      ? "신뢰도 " + aiData.confidence + "%" : "";
+    var modelName = aiData.model || "Llama 3.3 70B";
+
+    aiContent.innerHTML =
+      '<div class="ai-label-row">' +
+        '<span class="ai-verdict-badge ' + aiLabelCls + '">' + escHtml(aiData.label) + '</span>' +
+        (confText ? '<span class="ai-confidence">' + escHtml(confText) + '</span>' : '') +
+      '</div>' +
+      (aiData.reason ? '<div class="ai-reason">' + escHtml(aiData.reason) + '</div>' : '') +
+      '<div class="ai-model-tag">모델: ' + escHtml(modelName) + ' via Cloudflare Workers AI</div>';
+  }
+
+  // ── 최종 종합 판정 렌더링 ──────────────────────────────
+  var hybrid = calcHybridVerdict(ruleResult, aiData, aiState);
+  var verdictBox   = document.getElementById("finalVerdictBox");
+  var verdictLabel = document.getElementById("finalVerdictLabel");
+  var verdictMismatch = document.getElementById("finalVerdictMismatch");
+
+  // 최종 라벨에서 사기 여부 판단 (로딩 중 제외)
+  var isFinalScam = hybrid.finalLabel.indexOf("사기") !== -1 && aiState !== "loading";
+  var isLoading   = aiState === "loading";
+
+  var verdictBg, verdictBorder, verdictColor;
+  if (isLoading) {
+    verdictBg     = "#f0f4ff";
+    verdictBorder = "#c7d2fe";
+    verdictColor  = "#1e1b4b";
+  } else if (isFinalScam) {
+    verdictBg     = "var(--critical-bg)";
+    verdictBorder = "var(--critical)";
+    verdictColor  = "var(--critical)";
+  } else {
+    verdictBg     = "var(--safe-bg)";
+    verdictBorder = "var(--safe)";
+    verdictColor  = "var(--safe)";
+  }
+
+  verdictBox.style.background   = verdictBg;
+  verdictBox.style.borderColor  = verdictBorder;
+  verdictBox.style.color        = verdictColor;
+  verdictLabel.textContent      = hybrid.finalLabel;
+
+  if (hybrid.isMismatch && hybrid.mismatchNote) {
+    verdictMismatch.style.display = "block";
+    verdictMismatch.textContent   = "⚠️ " + hybrid.mismatchNote;
+  } else {
+    verdictMismatch.style.display = "none";
+    verdictMismatch.textContent   = "";
+  }
+
   // 면책 문구
   document.getElementById("disclaimerBox").textContent =
     disclaimerText || DISCLAIMER;
@@ -1172,7 +1484,9 @@ function renderResult(result) {
   // 결과 카드 표시 + 스크롤
   var resultEl = document.getElementById("result");
   resultEl.classList.add("visible");
-  resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (aiState === "loading") {
+    resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 // ── 지우기 ─────────────────────────────────────────────────
