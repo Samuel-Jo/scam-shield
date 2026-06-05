@@ -336,6 +336,26 @@ function buildSafeSummary(signals) {
   return `위험 신호 ${signals.length}개 발견: ${labels}`;
 }
 
+/**
+ * DAY13: 위험 등급에 따라 사용자가 즉시 취해야 할 행동을 한 줄로 안내합니다.
+ * 분류 로직(점수·등급)은 건드리지 않으며 출력 전용입니다.
+ *
+ * scamDetector.ts 의 buildActionAdvice 와 동일한 규칙을 유지합니다.
+ * 규칙 변경 시 scamDetector.ts 와 함께 수정할 것.
+ * @param {string} level
+ * @returns {string}
+ */
+function buildActionAdvice(level) {
+  if (level === "매우위험" || level === "위험") {
+    return "응답·송금·링크 클릭을 멈추고, 기관/지인은 공식 번호로 직접 확인하세요. 이미 입력했다면 즉시 차단·신고(112/118)하세요.";
+  }
+  if (level === "주의") {
+    return "바로 응하지 말고 출처를 한 번 더 확인하세요. 모르는 링크·계좌는 누르거나 보내지 마세요.";
+  }
+  // 안전
+  return "특이 신호는 없지만, 모르는 사람의 송금·링크 요구는 항상 의심하세요.";
+}
+
 // ---------------------------------------------------------------------------
 // 핵심 함수: detectScam (scamDetector.ts 와 동일 로직, V2)
 // ---------------------------------------------------------------------------
@@ -430,8 +450,10 @@ function detectScam(text) {
 
   const oneLineWarning = buildOneLineWarning(level, signals);
   const safeSummary = buildSafeSummary(signals);
+  // DAY13: 분류 완료 후 등급만 참조해 행동 안내 생성 — 점수·등급에는 영향 없음
+  const actionAdvice = buildActionAdvice(level);
 
-  return { riskScore, level, signals, oneLineWarning, safeSummary };
+  return { riskScore, level, signals, oneLineWarning, safeSummary, actionAdvice };
 }
 
 // ---------------------------------------------------------------------------
@@ -455,6 +477,8 @@ function printResult(text, result) {
   console.log(`위험 등급  : ${LEVEL_BAR[result.level] ?? result.level}`);
   console.log(`경고       : ${result.oneLineWarning}`);
   console.log(`요약       : ${result.safeSummary}`);
+  // DAY13: 추천 행동 출력 — 등급별 즉시 취할 행동 안내
+  console.log(`추천 행동  : ${result.actionAdvice}`);
 
   if (result.signals.length > 0) {
     console.log("\n탐지된 신호:");
