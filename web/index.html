@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 사기 메시지 방패</title>
+  <meta name="description" content="의심스러운 문자·링크를 붙여넣으면 위험도와 이유를 알려드립니다" />
+  <style>
+    /* ── 리셋 & 기반 ─────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:      #2563eb;
+      --brand-dark: #1d4ed8;
+      --bg:         #f8fafc;
+      --surface:    #ffffff;
+      --border:     #e2e8f0;
+      --text:       #0f172a;
+      --text-sub:   #64748b;
+      --safe:       #16a34a;
+      --safe-bg:    #dcfce7;
+      --warn:       #ca8a04;
+      --warn-bg:    #fef9c3;
+      --danger:     #ea580c;
+      --danger-bg:  #ffedd5;
+      --critical:   #dc2626;
+      --critical-bg:#fee2e2;
+      --radius:     12px;
+      --shadow:     0 4px 24px rgba(0,0,0,.08);
+      font-size: 16px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+                   "Noto Sans KR", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── 헤더 ──────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px;
+      text-align: center;
+    }
+
+    .header-icon {
+      font-size: 2.5rem;
+      line-height: 1;
+    }
+
+    .header-title {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-top: 6px;
+      letter-spacing: -0.5px;
+    }
+
+    .header-sub {
+      font-size: 0.95rem;
+      color: var(--text-sub);
+      margin-top: 4px;
+    }
+
+    /* ── 메인 레이아웃 ─────────────────────────────── */
+    main {
+      flex: 1;
+      max-width: 760px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+
+    /* ── 입력 영역 ─────────────────────────────────── */
+    .input-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+
+    .input-label {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      letter-spacing: 0.03em;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    textarea#msg {
+      width: 100%;
+      min-height: 130px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 0.97rem;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+      resize: vertical;
+      transition: border-color .15s;
+      font-family: inherit;
+    }
+
+    textarea#msg:focus {
+      outline: none;
+      border-color: var(--brand);
+      background: #fff;
+    }
+
+    textarea#msg::placeholder { color: #94a3b8; }
+
+    .input-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn-analyze {
+      background: var(--brand);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 11px 28px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s, transform .08s;
+      white-space: nowrap;
+    }
+
+    .btn-analyze:hover  { background: var(--brand-dark); }
+    .btn-analyze:active { transform: scale(.97); }
+
+    .btn-clear {
+      background: transparent;
+      color: var(--text-sub);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+
+    .btn-clear:hover {
+      border-color: #94a3b8;
+      color: var(--text);
+    }
+
+    .char-count {
+      font-size: 0.82rem;
+      color: var(--text-sub);
+      margin-left: auto;
+    }
+
+    /* ── 인젝션 경고 배지 ───────────────────────────── */
+    .injection-badge {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      color: #92400e;
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+
+    .injection-badge.visible { display: flex; }
+
+    /* ── 예시 버튼 ─────────────────────────────────── */
+    .examples-section {
+      margin-top: 20px;
+    }
+
+    .examples-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .examples-label::before {
+      content: "";
+      display: inline-block;
+      width: 3px;
+      height: 14px;
+      background: var(--brand);
+      border-radius: 2px;
+    }
+
+    .examples-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .btn-example {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: border-color .12s, background .12s, color .12s;
+      color: var(--text);
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .btn-example:hover {
+      border-color: var(--brand);
+      color: var(--brand);
+      background: #eff6ff;
+    }
+
+    .btn-example.scam { border-color: #fca5a5; color: #991b1b; background: #fff5f5; }
+    .btn-example.safe { border-color: #86efac; color: #166534; background: #f0fdf4; }
+
+    /* ── 결과 카드 ─────────────────────────────────── */
+    #result {
+      margin-top: 24px;
+      display: none;
+    }
+
+    #result.visible { display: block; }
+
+    .result-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    /* 상단 점수 바 */
+    .result-header {
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .score-circle {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      flex-shrink: 0;
+      border: 3px solid transparent;
+    }
+
+    .score-number {
+      font-size: 1.55rem;
+      line-height: 1;
+    }
+
+    .score-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin-top: 2px;
+    }
+
+    .score-info {
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .level-badge {
+      display: inline-block;
+      font-size: 0.85rem;
+      font-weight: 700;
+      border-radius: 20px;
+      padding: 3px 12px;
+      margin-bottom: 8px;
+    }
+
+    /* 게이지 바 */
+    .gauge-wrap {
+      margin-top: 6px;
+    }
+
+    .gauge-track {
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .gauge-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width .4s ease;
+    }
+
+    .gauge-ticks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-sub);
+      margin-top: 3px;
+    }
+
+    /* 등급별 색 */
+    .lvl-safe     { color: var(--safe);     background: var(--safe-bg); border-color: var(--safe); }
+    .lvl-warn     { color: var(--warn);     background: var(--warn-bg); border-color: var(--warn); }
+    .lvl-danger   { color: var(--danger);   background: var(--danger-bg); border-color: var(--danger); }
+    .lvl-critical { color: var(--critical); background: var(--critical-bg); border-color: var(--critical); }
+
+    .gauge-safe     { background: var(--safe); }
+    .gauge-warn     { background: var(--warn); }
+    .gauge-danger   { background: var(--danger); }
+    .gauge-critical { background: var(--critical); }
+
+    /* 결과 본문 */
+    .result-body { padding: 20px 24px; }
+
+    /* 한 줄 경고 */
+    .warning-box {
+      border-radius: 8px;
+      padding: 13px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      line-height: 1.55;
+      margin-bottom: 16px;
+      border-left: 4px solid transparent;
+    }
+
+    /* 추천 행동 */
+    .action-box {
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 0.92rem;
+      line-height: 1.6;
+      margin-bottom: 16px;
+      background: #eff6ff;
+      border: 1.5px solid #bfdbfe;
+    }
+
+    .action-title {
+      font-weight: 700;
+      color: var(--brand-dark);
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+
+    .action-text { color: #1e3a8a; }
+
+    /* 신호 목록 */
+    .signals-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-sub);
+      letter-spacing: 0.04em;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .signal-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .signal-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .signal-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      flex-wrap: wrap;
+    }
+
+    .signal-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #fef3c7;
+      color: #92400e;
+      flex-shrink: 0;
+    }
+
+    .signal-label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .signal-weight {
+      font-size: 0.75rem;
+      color: var(--text-sub);
+      margin-left: auto;
+    }
+
+    .signal-why {
+      font-size: 0.85rem;
+      color: var(--text-sub);
+      line-height: 1.55;
+    }
+
+    .signal-excerpt {
+      margin-top: 6px;
+      font-size: 0.8rem;
+      background: #f1f5f9;
+      border-radius: 4px;
+      padding: 5px 8px;
+      color: #475569;
+      font-family: "Courier New", monospace;
+      word-break: break-all;
+    }
+
+    /* 안전 메시지 */
+    .safe-box {
+      text-align: center;
+      padding: 24px 16px;
+      color: var(--safe);
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .safe-box span { font-size: 1.8rem; display: block; margin-bottom: 6px; }
+
+    /* 면책 문구 */
+    .disclaimer {
+      margin-top: 18px;
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      line-height: 1.6;
+      padding: 10px 14px;
+      background: var(--bg);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    /* 입력 오류 */
+    .input-error {
+      display: none;
+      color: var(--critical);
+      font-size: 0.87rem;
+      margin-top: 8px;
+      font-weight: 600;
+    }
+
+    .input-error.visible { display: block; }
+
+    /* ── 푸터 ──────────────────────────────────────── */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 18px 20px;
+      font-size: 0.8rem;
+      color: var(--text-sub);
+      line-height: 1.7;
+    }
+
+    footer a {
+      color: var(--brand);
+      text-decoration: none;
+    }
+
+    footer a:hover { text-decoration: underline; }
+
+    /* ── 반응형 ─────────────────────────────────────── */
+    @media (max-width: 520px) {
+      .header-title { font-size: 1.3rem; }
+      .input-card   { padding: 16px; }
+      .result-body  { padding: 16px; }
+      .result-header { padding: 16px 16px 14px; }
+      .score-circle { width: 60px; height: 60px; }
+      .score-number { font-size: 1.25rem; }
+      .btn-example  { font-size: 0.78rem; padding: 5px 11px; }
+      main { padding: 16px 12px 32px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── 헤더 ──────────────────────────────────────────── -->
+<header>
+  <div class="header-icon">🛡️</div>
+  <h1 class="header-title">AI 사기 메시지 방패</h1>
+  <p class="header-sub">의심스러운 문자·링크를 붙여넣으면 위험도와 이유를 알려드립니다</p>
+</header>
+
+<!-- ── 메인 ──────────────────────────────────────────── -->
+<main>
+
+  <!-- 입력 카드 -->
+  <div class="input-card">
+    <label class="input-label" for="msg">분석할 메시지 입력</label>
+    <textarea
+      id="msg"
+      placeholder="의심스러운 문자·카톡·링크를 붙여넣어 보세요"
+      aria-label="분석할 메시지 입력"
+      spellcheck="false"
+    ></textarea>
+
+    <p class="input-error" id="inputError" role="alert"></p>
+
+    <!-- 인젝션 경고 배지 -->
+    <div class="injection-badge" id="injectionBadge" role="alert" aria-live="polite">
+      ⚠️ <span id="injectionText">조작 시도가 감지됐습니다. 분석은 계속하지만 결과를 신중하게 판단하세요.</span>
+    </div>
+
+    <div class="input-actions">
+      <button class="btn-analyze" id="btnAnalyze" onclick="doAnalyze()">분석하기</button>
+      <button class="btn-clear" onclick="doClear()">지우기</button>
+      <span class="char-count" id="charCount">0 / 5000자</span>
+    </div>
+  </div>
+
+  <!-- 예시 버튼 -->
+  <div class="examples-section">
+    <div class="examples-label">예시로 바로 체험해보세요</div>
+    <div class="examples-grid" id="examplesGrid"></div>
+  </div>
+
+  <!-- 결과 카드 -->
+  <div id="result" role="region" aria-label="분석 결과" aria-live="polite">
+    <div class="result-card">
+      <div class="result-header">
+        <div class="score-row">
+          <div class="score-circle" id="scoreCircle">
+            <span class="score-number" id="scoreNumber">0</span>
+            <span class="score-label">/ 100</span>
+          </div>
+          <div class="score-info">
+            <div class="level-badge" id="levelBadge">-</div>
+            <div class="gauge-wrap">
+              <div class="gauge-track">
+                <div class="gauge-fill" id="gaugeFill" style="width:0%"></div>
+              </div>
+              <div class="gauge-ticks">
+                <span>0</span><span>20</span><span>45</span><span>70</span><span>100</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="result-body">
+        <!-- 한 줄 경고 -->
+        <div class="warning-box" id="warningBox" role="alert"></div>
+
+        <!-- 추천 행동 -->
+        <div class="action-box" id="actionBox">
+          <div class="action-title">추천 행동</div>
+          <div class="action-text" id="actionText"></div>
+        </div>
+
+        <!-- 탐지된 신호 -->
+        <div id="signalsSection">
+          <div class="signals-title">탐지된 위험 신호</div>
+          <div class="signal-list" id="signalList"></div>
+        </div>
+
+        <!-- 안전 박스 (신호 없을 때) -->
+        <div class="safe-box" id="safeBox" style="display:none">
+          <span>✅</span>
+          뚜렷한 사기 신호가 발견되지 않았습니다.
+        </div>
+
+        <!-- 면책 문구 -->
+        <div class="disclaimer" id="disclaimerBox"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── 푸터 ──────────────────────────────────────────── -->
+<footer>
+  <p>규칙 기반 데모 엔진 · 16일 바이브코딩 프로젝트</p>
+  <p>한계: 맥락 이해 못 함 (향후 LLM 연동 예정)</p>
+  <p>
+    <a href="https://github.com/Samuel-Jo/scam-shield" target="_blank" rel="noopener">
+      GitHub: Samuel-Jo/scam-shield
+    </a>
+  </p>
+</footer>
+
+<script>
+// ============================================================
+// cli.mjs 순수 JS 로직 인라인 (100% 동일)
+// ============================================================
+
+// ── PII 마스킹 ──────────────────────────────────────────────
+function maskPII(text) {
+  if (typeof text !== "string") return text;
+  let result = text;
+
+  // 카드번호: 4-4-4-4 형식 (가장 구체적 패턴 우선)
+  result = result.replace(/\b(\d{4})-(\d{4})-(\d{4})-(\d{4})\b/g, "$1-****-****-****");
+
+  // 주민등록번호: 6자리-7자리
+  result = result.replace(/\b(\d{6})-(\d{7})\b/g, "$1-*******");
+
+  // 전화번호: 01X-XXX(X)-XXXX
+  result = result.replace(
+    /\b(01\d)-(\d{3,4})-(\d{4})\b/g,
+    function(_match, p1, p2, p3) { return p1 + "-" + "*".repeat(p2.length) + "-" + p3; }
+  );
+
+  // 계좌번호: 숫자(2~6)-숫자(2~8)-숫자(2~8) (전화/카드/주민번호 처리 이후 남은 것)
+  result = result.replace(
+    /\b(\d{2,6})-(\d{2,8})-(\d{2,8})\b/g,
+    function(_match, p1, p2, p3) {
+      if (_match.includes("*")) return _match;
+      return p1 + "-" + "*".repeat(p2.length) + "-" + p3;
+    }
+  );
+
+  return result;
+}
+
+// ── 입력 검사 ───────────────────────────────────────────────
+function guardInput(text) {
+  if (text === null || text === undefined) {
+    return { ok: false, text: "", note: "입력이 비어 있습니다. 분석할 메시지를 입력해 주세요." };
+  }
+  const s = String(text);
+  if (s.trim().length === 0) {
+    return { ok: false, text: "", note: "입력이 비어 있습니다. 분석할 메시지를 입력해 주세요." };
+  }
+  const MAX = 5000;
+  if (s.length > MAX) {
+    return { ok: true, text: s.slice(0, MAX), note: "입력이 " + MAX + "자를 초과해 앞 " + MAX + "자만 분석합니다." };
+  }
+  return { ok: true, text: s, note: null };
+}
+
+// ── 출력 검증 ───────────────────────────────────────────────
+function guardOutput(result) {
+  if (!result || typeof result !== "object") return result;
+
+  const DISCLAIMER = "최종 판단은 사용자 몫이며, 의심되면 공식 기관에 직접 확인하세요.";
+
+  const ASSERTIVE_PATTERNS = [
+    /100\s*%\s*(사기|위험|확실)/,
+    /확실(히|하게)\s*(사기|위험)/,
+    /무조건\s*사기/,
+    /반드시\s*사기/,
+    /완전히?\s*사기/,
+    /사기\s*(임이\s*)?확실/,
+  ];
+
+  let { oneLineWarning } = result;
+
+  const hasAssertive = ASSERTIVE_PATTERNS.some(function(p) { return p.test(oneLineWarning); });
+  if (hasAssertive) {
+    oneLineWarning = oneLineWarning
+      .replace(/100\s*%\s*(사기|위험|확실)/g, "높은 가능성으로 사기 의심")
+      .replace(/확실(히|하게)\s*(사기|위험)/g, "사기 의심")
+      .replace(/무조건\s*사기/g, "사기 의심")
+      .replace(/반드시\s*사기/g, "사기 의심")
+      .replace(/완전히?\s*사기/g, "사기 의심")
+      .replace(/사기\s*(임이\s*)?확실/g, "사기 의심");
+  }
+
+  if (!oneLineWarning.includes(DISCLAIMER)) {
+    oneLineWarning = oneLineWarning + " " + DISCLAIMER;
+  }
+
+  return Object.assign({}, result, { oneLineWarning: oneLineWarning });
+}
+
+// ── 프롬프트 인젝션 탐지 ────────────────────────────────────
+function detectPromptInjection(text) {
+  if (typeof text !== "string") return { injected: false, hits: [] };
+
+  const INJECTION_PATTERNS = [
+    { pattern: /이전\s*(지시|명령|규칙|설정)\s*(무시|잊어|삭제)/i,   label: "이전 지시 무시" },
+    { pattern: /앞(의|에서)\s*(지시|명령|규칙)\s*(무시|잊어|삭제)/i, label: "앞의 지시 무시" },
+    { pattern: /시스템\s*프롬프트/i,                                  label: "시스템 프롬프트 언급" },
+    { pattern: /system\s*prompt/i,                                    label: "system prompt 언급" },
+    { pattern: /너는\s*이제/i,                                        label: "역할 전환 유도(너는 이제)" },
+    { pattern: /지금부터\s*너는/i,                                    label: "역할 전환 유도(지금부터 너는)" },
+    { pattern: /당신은\s*이제/i,                                      label: "역할 전환 유도(당신은 이제)" },
+    { pattern: /ignore\s+previous/i,                                  label: "ignore previous (영문)" },
+    { pattern: /disregard\s+(all|your|the|instructions|rules)/i,      label: "disregard instructions (영문)" },
+    { pattern: /forget\s+(your|all|the)\s+instructions/i,             label: "forget instructions (영문)" },
+    { pattern: /새로운\s*지시/i,                                      label: "새로운 지시 시도" },
+    { pattern: /지시를\s*(바꿔|변경|수정)/i,                          label: "지시 변경 시도" },
+    { pattern: /규칙을\s*무시/i,                                      label: "규칙 무시 시도" },
+    { pattern: /안전하다고\s*(답|말|출력)/i,                          label: "결과 조작 유도(안전하다고)" },
+    { pattern: /정상이라고\s*(답|말|출력)/i,                          label: "결과 조작 유도(정상이라고)" },
+    { pattern: /사기가\s*아니(라고|라고\s*해)/i,                      label: "결과 조작 유도(사기가 아니라고)" },
+    { pattern: /act\s+as\s+(if|a|an)/i,                               label: "act as (역할 변환, 영문)" },
+    { pattern: /jailbreak/i,                                           label: "jailbreak 시도 (영문)" },
+    { pattern: /DAN\b/i,                                               label: "DAN 프롬프트 시도 (영문)" },
+  ];
+
+  var hits = [];
+  for (var i = 0; i < INJECTION_PATTERNS.length; i++) {
+    if (INJECTION_PATTERNS[i].pattern.test(text)) {
+      hits.push(INJECTION_PATTERNS[i].label);
+    }
+  }
+  return { injected: hits.length > 0, hits: hits };
+}
+
+// ── 규칙 정의 (scamDetector.ts / cli.mjs 완전 동일) ─────────
+var RULES = [
+  {
+    type: "url",
+    label: "의심스러운 링크",
+    weight: 18,
+    why: "낯선 주소·단축URL은 가짜 사이트로 유도하는 통로예요.",
+    patterns: [
+      /https?:\/\//i,
+      /\b(bit\.ly|tinyurl|han\.gl|me2\.kr|buly\.kr|abr\.ge|url\.kr)\b/i,
+      /[\w-]+\.(com|net|kr|xyz|top|click|link|vip|cc)\b/i,
+    ],
+    highRiskPatterns: [
+      /\b(bit\.ly|tinyurl|han\.gl|me2\.kr|buly\.kr|abr\.ge|url\.kr)\b/i,
+    ],
+    highRiskBonus: 28,
+  },
+  {
+    type: "money",
+    label: "금전 요구",
+    weight: 22,
+    why: "선입금·계좌이체를 요구하면 거의 사기예요.",
+    patterns: [
+      /선입금|입금|계좌|송금|이체|보증금|예치금|수수료|대납|환전/,
+      /\d{2,}-\d{2,}-\d{3,}/,
+    ],
+  },
+  {
+    type: "impersonation",
+    label: "기관 사칭",
+    weight: 20,
+    why: "공공기관·은행은 문자로 개인정보나 송금을 요구하지 않아요.",
+    patterns: [
+      /경찰|검찰|검사|금융감독원|금감원|국세청|법원|우체국|택배|관세청|세관|은행|고객센터|수사관|민원실|질병관리청/,
+    ],
+  },
+  {
+    type: "pressure",
+    label: "심리적 압박",
+    weight: 16,
+    why: "'지금 당장'으로 급하게 몰면 판단을 흐리려는 수법이에요.",
+    patterns: [
+      /지금|즉시|당장|마감|한정|계정\s?정지|벌금|체포|영장|미납|연체|긴급|마지막/,
+    ],
+    highRiskPatterns: [
+      /영장|체포|구속|계정\s?정지|압류|벌금/,
+    ],
+    highRiskBonus: 30,
+  },
+  {
+    type: "personalInfo",
+    label: "개인정보 요구",
+    weight: 22,
+    why: "인증번호·비밀번호·주민번호는 누구에게도 알려주면 안 돼요.",
+    patterns: [
+      /인증번호|인증\s?코드|otp|비밀번호|비번|주민(등록)?번호|카드\s?번호|cvc|보안카드|신분증/i,
+    ],
+  },
+  {
+    type: "offPlatform",
+    label: "안전거래 회피",
+    weight: 12,
+    why: "안전결제를 피해 직거래·개인송금을 유도하면 위험해요.",
+    patterns: [
+      /직거래|카톡으로|문자로\s?연락|안전결제\s?(말고|없이|대신)|개인\s?거래/,
+    ],
+  },
+  {
+    type: "tooGood",
+    label: "비현실적 조건",
+    weight: 12,
+    why: "'반값·원금보장·고수익'처럼 너무 좋은 조건은 미끼예요.",
+    patterns: [
+      /급처|급매|시세보다|반값|원금\s?보장|고수익|수익\s?보장|무조건|확정\s?수익|100%/,
+    ],
+    highRiskPatterns: [
+      /원금\s?보장|수익\s?보장|고수익|확정\s?수익/,
+    ],
+    highRiskBonus: 12,
+  },
+];
+
+// ── 헬퍼 함수 ──────────────────────────────────────────────
+function extractExcerpt(text, matchIndex, matchLength) {
+  var PAD = 30;
+  var start = Math.max(0, matchIndex - PAD);
+  var end = Math.min(text.length, matchIndex + matchLength + PAD);
+  var snippet = text.slice(start, end);
+  var prefix = start > 0 ? "..." : "";
+  var suffix = end < text.length ? "..." : "";
+  return prefix + snippet + suffix;
+}
+
+function buildOneLineWarning(level, signals) {
+  if (level === "안전") {
+    return "뚜렷한 사기 신호는 없지만, 모르는 사람의 송금·링크 요구는 항상 의심하세요.";
+  }
+
+  var topType = signals[0] ? signals[0].type : undefined;
+
+  var warningMap = {
+    personalInfo: "인증번호·비밀번호를 묻는 전형적 사기예요. 절대 입력하지 마세요.",
+    money:        "입금·계좌이체를 요구하고 있어요. 돈을 보내기 전에 반드시 확인하세요.",
+    impersonation:"공공기관·기업을 사칭하는 메시지예요. 직접 공식 번호로 확인하세요.",
+    url:          "의심스러운 링크가 있어요. 절대 클릭하지 말고 주소를 직접 확인하세요.",
+    pressure:     "'지금 당장'이라며 급하게 몰고 있어요. 서두르지 말고 주변에 물어보세요.",
+    offPlatform:  "안전결제 밖으로 유도하고 있어요. 플랫폼 내 결제만 이용하세요.",
+    tooGood:      "너무 좋은 조건은 사기의 미끼예요. 섣불리 응하지 마세요.",
+  };
+
+  var levelPrefix = {
+    "매우위험": "[매우위험] ",
+    "위험":     "[위험] ",
+    "주의":     "[주의] ",
+  };
+
+  var prefix = levelPrefix[level] !== undefined ? levelPrefix[level] : "";
+
+  if (topType === undefined) {
+    return prefix + "신중하게 판단하세요.";
+  }
+
+  return prefix + (warningMap[topType] !== undefined ? warningMap[topType] : "신중하게 판단하세요.");
+}
+
+function buildSafeSummary(signals) {
+  if (signals.length === 0) {
+    return "사기 신호가 발견되지 않았습니다.";
+  }
+  var labels = signals.map(function(s) { return s.label; }).join("·");
+  return "위험 신호 " + signals.length + "개 발견: " + labels;
+}
+
+function buildActionAdvice(level) {
+  if (level === "매우위험" || level === "위험") {
+    return "응답·송금·링크 클릭을 멈추고, 기관/지인은 공식 번호로 직접 확인하세요. 이미 입력했다면 즉시 차단·신고(112/118)하세요.";
+  }
+  if (level === "주의") {
+    return "바로 응하지 말고 출처를 한 번 더 확인하세요. 모르는 링크·계좌는 누르거나 보내지 마세요.";
+  }
+  return "특이 신호는 없지만, 모르는 사람의 송금·링크 요구는 항상 의심하세요.";
+}
+
+// ── 핵심 탐지 함수 (cli.mjs 와 100% 동일) ──────────────────
+function detectScam(text) {
+  var signals = [];
+
+  for (var r = 0; r < RULES.length; r++) {
+    var rule = RULES[r];
+    var firstMatch = null;
+
+    for (var p = 0; p < rule.patterns.length; p++) {
+      rule.patterns[p].lastIndex = 0;
+      var m = rule.patterns[p].exec(text);
+      if (m !== null) {
+        firstMatch = m;
+        break;
+      }
+    }
+
+    if (firstMatch !== null) {
+      var effectiveWeight = rule.weight;
+      if (rule.highRiskPatterns && rule.highRiskBonus !== undefined) {
+        for (var h = 0; h < rule.highRiskPatterns.length; h++) {
+          rule.highRiskPatterns[h].lastIndex = 0;
+          if (rule.highRiskPatterns[h].test(text)) {
+            effectiveWeight = rule.weight + rule.highRiskBonus;
+            break;
+          }
+        }
+      }
+
+      signals.push({
+        type:    rule.type,
+        label:   rule.label,
+        excerpt: maskPII(extractExcerpt(text, firstMatch.index, firstMatch[0].length)),
+        why:     rule.why,
+        weight:  effectiveWeight,
+      });
+    }
+  }
+
+  var matchedTypes = {};
+  for (var i = 0; i < signals.length; i++) {
+    matchedTypes[signals[i].type] = true;
+  }
+
+  var raw = 0;
+  for (var i = 0; i < signals.length; i++) {
+    raw += signals[i].weight;
+  }
+
+  // 콤보 보너스 V1
+  if (matchedTypes["url"]          && matchedTypes["money"])        raw += 10;
+  if (matchedTypes["impersonation"] && matchedTypes["personalInfo"]) raw += 12;
+
+  // 콤보 보너스 V2
+  if (matchedTypes["money"]        && matchedTypes["pressure"])     raw += 8;
+  if (matchedTypes["offPlatform"]  && matchedTypes["tooGood"])      raw += 12;
+  if (matchedTypes["impersonation"] && matchedTypes["pressure"])    raw += 8;
+
+  var riskScore = Math.min(100, raw);
+
+  var level;
+  if      (riskScore >= 70) level = "매우위험";
+  else if (riskScore >= 45) level = "위험";
+  else if (riskScore >= 20) level = "주의";
+  else                      level = "안전";
+
+  signals.sort(function(a, b) { return b.weight - a.weight; });
+
+  var oneLineWarning = buildOneLineWarning(level, signals);
+  var safeSummary    = buildSafeSummary(signals);
+  var actionAdvice   = buildActionAdvice(level);
+
+  return { riskScore: riskScore, level: level, signals: signals,
+           oneLineWarning: oneLineWarning, safeSummary: safeSummary,
+           actionAdvice: actionAdvice };
+}
+
+// ============================================================
+// UI 예시 데이터
+// ============================================================
+var EXAMPLES = [
+  {
+    tag:   "🚨 기관사칭",
+    type:  "scam",
+    text:  "[국세청] 미납 세금으로 계좌 압류 예정입니다. 지금 본인인증번호를 입력하세요 http://bit.ly/tax 미납 시 영장 발부",
+  },
+  {
+    tag:   "🚨 보이스피싱",
+    type:  "scam",
+    text:  "서울중앙지검 김민수 수사관입니다. 귀하 명의 계좌가 범죄에 연루되었습니다. 주민등록번호와 보안카드 번호를 불러주세요",
+  },
+  {
+    tag:   "🚨 중고선입금",
+    type:  "scam",
+    text:  "급처합니다! 시세보다 반값에 드려요. 안전결제 말고 계좌로 선입금 주시면 바로 택배 보내드릴게요",
+  },
+  {
+    tag:   "택배스미싱",
+    type:  "scam",
+    text:  "[CJ대한통운] 주소 불일치로 배송이 보류되었습니다. 정보 수정 http://me2.kr/abc 지금 확인하세요",
+  },
+  {
+    tag:   "투자리딩방",
+    type:  "scam",
+    text:  "원금보장 고수익 카톡 리딩방에 초대합니다. 하루 수익 인증 보고 지금 입장하면 무료 종목 추천해드려요",
+  },
+  {
+    tag:   "가족사칭",
+    type:  "scam",
+    text:  "엄마 나 폰 액정 깨져서 잠깐 다른 번호로 연락해. 급하게 돈 좀 보내줄 수 있어?",
+  },
+  {
+    tag:   "압박만",
+    type:  "scam",
+    text:  "지금 당장 연락 주세요. 빨리 처리 안 하면 불이익이 발생할 수 있습니다",
+  },
+  {
+    tag:   "정상·약속",
+    type:  "safe",
+    text:  "내일 오후 2시에 강남역 11번 출구에서 봐요. 혹시 늦으면 미리 연락할게요",
+  },
+  {
+    tag:   "정상·택배",
+    type:  "safe",
+    text:  "[CU] 주문하신 택배가 도착했습니다. 편의점 보관함에서 찾아가세요",
+  },
+  {
+    tag:   "드라마",
+    type:  "safe",
+    text:  "어제 드라마에서 경찰이 영장 들고 와서 범인 체포하는 장면 봤어? 진짜 긴장감 넘치더라",
+  },
+];
+
+// ============================================================
+// UI 초기화
+// ============================================================
+(function initExamples() {
+  var grid = document.getElementById("examplesGrid");
+  for (var i = 0; i < EXAMPLES.length; i++) {
+    (function(ex) {
+      var btn = document.createElement("button");
+      btn.className = "btn-example" + (ex.type === "scam" ? " scam" : ex.type === "safe" ? " safe" : "");
+      btn.textContent = ex.tag;
+      btn.setAttribute("aria-label", ex.tag + " 예시 불러오기");
+      btn.onclick = function() {
+        document.getElementById("msg").value = ex.text;
+        updateCharCount();
+        document.getElementById("msg").focus();
+      };
+      grid.appendChild(btn);
+    })(EXAMPLES[i]);
+  }
+})();
+
+// 글자 수 카운터
+document.getElementById("msg").addEventListener("input", updateCharCount);
+
+function updateCharCount() {
+  var len = document.getElementById("msg").value.length;
+  var el = document.getElementById("charCount");
+  el.textContent = len + " / 5000자";
+  el.style.color = len > 5000 ? "var(--critical)" : "var(--text-sub)";
+}
+
+// ── 등급 → 스타일 맵 ──────────────────────────────────────
+var LEVEL_STYLE = {
+  "안전":   { cls: "lvl-safe",     gauge: "gauge-safe",     label: "안전",     emoji: "✅" },
+  "주의":   { cls: "lvl-warn",     gauge: "gauge-warn",     label: "주의",     emoji: "⚠️" },
+  "위험":   { cls: "lvl-danger",   gauge: "gauge-danger",   label: "위험",     emoji: "🔶" },
+  "매우위험":{ cls: "lvl-critical", gauge: "gauge-critical", label: "매우위험", emoji: "🚨" },
+};
+
+var LEVEL_WARN_BG = {
+  "안전":    { bg: "var(--safe-bg)",     border: "var(--safe)",     color: "var(--safe)" },
+  "주의":    { bg: "var(--warn-bg)",     border: "var(--warn)",     color: "var(--warn)" },
+  "위험":    { bg: "var(--danger-bg)",   border: "var(--danger)",   color: "var(--danger)" },
+  "매우위험":{ bg: "var(--critical-bg)", border: "var(--critical)", color: "var(--critical)" },
+};
+
+// ── 분석 실행 ─────────────────────────────────────────────
+function doAnalyze() {
+  var raw = document.getElementById("msg").value;
+
+  // 에러 초기화
+  var errEl = document.getElementById("inputError");
+  errEl.textContent = "";
+  errEl.classList.remove("visible");
+
+  // 인젝션 배지 숨기기
+  document.getElementById("injectionBadge").classList.remove("visible");
+
+  // 1단계: 입력 검사
+  var inputGuard = guardInput(raw);
+  if (!inputGuard.ok) {
+    errEl.textContent = inputGuard.note;
+    errEl.classList.add("visible");
+    document.getElementById("result").classList.remove("visible");
+    return;
+  }
+
+  var safeInput = inputGuard.text;
+
+  // 2단계: 프롬프트 인젝션 탐지
+  var injCheck = detectPromptInjection(safeInput);
+  if (injCheck.injected) {
+    var badge = document.getElementById("injectionBadge");
+    document.getElementById("injectionText").textContent =
+      "조작 시도 감지: " + injCheck.hits.join(", ") + " — 분석은 계속하지만 결과를 신중하게 판단하세요.";
+    badge.classList.add("visible");
+  }
+
+  // 3단계: 탐지
+  var rawResult = detectScam(safeInput);
+
+  // 4단계: 출력 검증
+  var result = guardOutput(rawResult);
+
+  // 결과 렌더링
+  renderResult(result);
+}
+
+function renderResult(result) {
+  var style    = LEVEL_STYLE[result.level]   || LEVEL_STYLE["안전"];
+  var warnStyle = LEVEL_WARN_BG[result.level] || LEVEL_WARN_BG["안전"];
+
+  // 점수 원형
+  var circle = document.getElementById("scoreCircle");
+  circle.className = "score-circle " + style.cls;
+  document.getElementById("scoreNumber").textContent = result.riskScore;
+
+  // 등급 배지
+  var badge = document.getElementById("levelBadge");
+  badge.className = "level-badge " + style.cls;
+  badge.textContent = style.emoji + " " + style.label;
+
+  // 게이지
+  var fill = document.getElementById("gaugeFill");
+  fill.style.width = result.riskScore + "%";
+  fill.className = "gauge-fill " + style.gauge;
+
+  // 한 줄 경고 (면책 문구 분리)
+  var DISCLAIMER = "최종 판단은 사용자 몫이며, 의심되면 공식 기관에 직접 확인하세요.";
+  var warnText = result.oneLineWarning;
+  var disclaimerText = "";
+  if (warnText.includes(DISCLAIMER)) {
+    var idx = warnText.indexOf(DISCLAIMER);
+    disclaimerText = DISCLAIMER;
+    warnText = warnText.slice(0, idx).trim();
+  }
+
+  var warningBox = document.getElementById("warningBox");
+  warningBox.textContent = warnText;
+  warningBox.style.background    = warnStyle.bg;
+  warningBox.style.borderColor   = warnStyle.border;
+  warningBox.style.color         = warnStyle.color;
+
+  // 추천 행동
+  document.getElementById("actionText").textContent = result.actionAdvice;
+
+  // 신호 목록
+  var signalsSection = document.getElementById("signalsSection");
+  var signalList     = document.getElementById("signalList");
+  var safeBox        = document.getElementById("safeBox");
+
+  signalList.innerHTML = "";
+
+  if (result.signals.length === 0) {
+    signalsSection.style.display = "none";
+    safeBox.style.display        = "block";
+  } else {
+    signalsSection.style.display = "block";
+    safeBox.style.display        = "none";
+
+    for (var i = 0; i < result.signals.length; i++) {
+      var sig  = result.signals[i];
+      var item = document.createElement("div");
+      item.className = "signal-item";
+      item.innerHTML =
+        '<div class="signal-top">' +
+          '<span class="signal-badge">' + escHtml(sig.type) + '</span>' +
+          '<span class="signal-label">' + escHtml(sig.label) + '</span>' +
+          '<span class="signal-weight">가중치 ' + sig.weight + '</span>' +
+        '</div>' +
+        '<div class="signal-why">' + escHtml(sig.why) + '</div>' +
+        '<div class="signal-excerpt">발췌: ' + escHtml(sig.excerpt) + '</div>';
+      signalList.appendChild(item);
+    }
+  }
+
+  // 면책 문구
+  document.getElementById("disclaimerBox").textContent =
+    disclaimerText || DISCLAIMER;
+
+  // 결과 카드 표시 + 스크롤
+  var resultEl = document.getElementById("result");
+  resultEl.classList.add("visible");
+  resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ── 지우기 ─────────────────────────────────────────────────
+function doClear() {
+  document.getElementById("msg").value = "";
+  updateCharCount();
+  document.getElementById("result").classList.remove("visible");
+  document.getElementById("inputError").classList.remove("visible");
+  document.getElementById("injectionBadge").classList.remove("visible");
+  document.getElementById("msg").focus();
+}
+
+// ── HTML 이스케이프 ────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// ── 키보드 단축키: Enter (Ctrl/Cmd+Enter) → 분석 ──────────
+document.getElementById("msg").addEventListener("keydown", function(e) {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    doAnalyze();
+  }
+});
+</script>
+</body>
+</html>
