@@ -1,9 +1,15 @@
 /**
  * scamDetector.ts
- * AI 사기 메시지 방패 — V1 탐지 엔진 (standalone)
+ * AI 사기 메시지 방패 — V2 탐지 엔진 (standalone)
  *
  * DAY5: 규칙 기반 클라이언트 엔진. 외부 API·네트워크·시크릿 전혀 없음.
  * 같은 입력을 넣으면 항상 같은 출력이 나오는 결정론적(순수 함수) 모듈입니다.
+ *
+ * DAY8~9 V2 개선:
+ *   - 고위험 키워드 티어(highRiskPatterns / highRiskBonus): 신호 내 강한 하위 패턴을 별도 KB로 관리.
+ *     실제 신고 사례 키워드를 참고해 확장하는 RAG식 구조(로컬 배열, 외부 호출 없음).
+ *   - 콤보 보너스 확대: money+pressure(+8), offPlatform+tooGood(+12), impersonation+pressure(+8) 추가.
+ *   - 임계값(45)·기존 단일 가중치 체계 유지 → 정상 문자 오탐 방지.
  */
 
 // ---------------------------------------------------------------------------
@@ -70,15 +76,27 @@ interface Rule {
   weight: number;
   why: string;
   patterns: RegExp[];
+  /**
+   * [V2] 고위험 하위 패턴 KB (RAG식 구조: 실제 신고 사례 키워드를 참고해 확장).
+   * 이 패턴 중 하나라도 매치되면 weight + highRiskBonus 로 채점합니다.
+   * 외부 호출 없이 로컬 배열로 관리합니다.
+   */
+  highRiskPatterns?: RegExp[];
+  /** [V2] 고위험 패턴 매치 시 기본 weight 에 추가되는 보너스 점수 */
+  highRiskBonus?: number;
 }
 
 /**
- * 7종 규칙 사전 — 키워드·가중치는 팀 기획 단계에서 합의한 값입니다.
- * 탐지 로직은 타입별 첫 패턴 매치 1개만 사용합니다(중복 가산 없음).
+ * [V2] 고위험 키워드 KB (Knowledge Base) — 신고 사례 참고 확장.
  *
- * 가중치 요약:
- *   url(18) / money(22) / impersonation(20) / pressure(16)
- *   personalInfo(22) / offPlatform(12) / tooGood(12)
+ * 아래 배열은 각 신호 유형별로 "강한 사기 신호"로 분류된 키워드 모음입니다.
+ * 새 신고 사례가 들어오면 이 배열에 추가하는 방식으로 확장합니다(RAG식 구조).
+ * 특정 케이스 텍스트를 하드코딩하지 않습니다 — 키워드 일반화만 허용합니다.
+ *
+ * 가중치 요약 (V2):
+ *   url(18, 단축URL 고위험 +30=48) / money(22) / impersonation(20)
+ *   pressure(16, 법적강제 고위험 +30=46) / personalInfo(22) / offPlatform(12)
+ *   tooGood(12, 수익보장 고위험 +15=27)
  */
 const RULES: Rule[] = [
   {
@@ -91,6 +109,11 @@ const RULES: Rule[] = [
       /\b(bit\.ly|tinyurl|han\.gl|me2\.kr|buly\.kr|abr\.ge|url\.kr)\b/i,
       /[\w-]+\.(com|net|kr|xyz|top|click|link|vip|cc)\b/i,
     ],
+    // [V2 고위험 KB] 단축 URL 서비스: 출처를 감추기 위한 리다이렉트 도구로 사기에 자주 악용됨.
+    highRiskPatterns: [
+      /\b(bit\.ly|tinyurl|han\.gl|me2\.kr|buly\.kr|abr\.ge|url\.kr)\b/i,
+    ],
+    highRiskBonus: 30, // 단축URL 단독 탐지 시 18+30=48 → 임계값 초과
   },
   {
     type: "money",
@@ -101,6 +124,7 @@ const RULES: Rule[] = [
       /선입금|입금|계좌|송금|이체|보증금|예치금|수수료|대납|환전/,
       /\d{2,}-\d{2,}-\d{3,}/,
     ],
+    // money 신호 자체는 고위험 하위 티어 없음 — 단독 금전 키워드는 정상 거래에도 등장.
   },
   {
     type: "impersonation",
@@ -110,6 +134,7 @@ const RULES: Rule[] = [
     patterns: [
       /경찰|검찰|검사|금융감독원|금감원|국세청|법원|우체국|택배|관세청|세관|은행|고객센터|수사관|민원실|질병관리청/,
     ],
+    // impersonation 단독은 20점 → 정상 배송 문자 등에서 오탐 방지를 위해 고위험 KB 미적용.
   },
   {
     type: "pressure",
@@ -119,6 +144,12 @@ const RULES: Rule[] = [
     patterns: [
       /지금|즉시|당장|마감|한정|계정\s?정지|벌금|체포|영장|미납|연체|긴급|마지막/,
     ],
+    // [V2 고위험 KB] 법적 강제 키워드: 실제 수사기관·법원은 문자로 이런 표현을 쓰지 않음.
+    // 신고 사례 다수에서 "영장 발부", "체포", "구속", "계정정지", "압류", "벌금" 키워드 확인됨.
+    highRiskPatterns: [
+      /영장|체포|구속|계정\s?정지|압류|벌금/,
+    ],
+    highRiskBonus: 30, // 법적강제 단독 탐지 시 16+30=46 → 임계값 초과
   },
   {
     type: "personalInfo",
@@ -146,6 +177,12 @@ const RULES: Rule[] = [
     patterns: [
       /급처|급매|시세보다|반값|원금\s?보장|고수익|수익\s?보장|무조건|확정\s?수익|100%/,
     ],
+    // [V2 고위험 KB] 수익 보장 류: 실제 금융상품에서 절대 허용되지 않는 표현.
+    // 신고 사례에서 "원금보장", "수익보장", "고수익", "확정수익"이 리딩방 사기의 핵심 키워드로 반복 확인됨.
+    highRiskPatterns: [
+      /원금\s?보장|수익\s?보장|고수익|확정\s?수익/,
+    ],
+    highRiskBonus: 15, // 수익보장 매치 시 12+15=27점 (콤보와 결합해 임계값 초과 유도)
   },
 ];
 
@@ -229,11 +266,17 @@ function buildSafeSummary(signals: RiskSignal[]): string {
 /**
  * 문자·메시지 텍스트를 분석해 사기 위험도를 반환합니다.
  *
- * 채점 규칙:
+ * 채점 규칙 (V2):
  *   - 타입별 첫 번째 패턴 매치 1개만 신호로 등록합니다 (중복 가산 없음).
- *   - url + money 동시 탐지 시 콤보 보너스 +10
- *   - impersonation + personalInfo 동시 탐지 시 콤보 보너스 +12
- *   - riskScore = Math.min(100, 합산점수 + 콤보보너스)
+ *   - [V2] 매치된 신호에 highRiskPatterns 가 정의된 경우, 해당 패턴도 검사해
+ *     고위험 패턴 매치 시 weight + highRiskBonus 로 가중치를 적용합니다.
+ *
+ * 콤보 보너스 (V2 확장):
+ *   - url + money 동시 탐지: +10
+ *   - impersonation + personalInfo 동시 탐지: +12
+ *   - [V2] money + pressure 동시 탐지: +8  (송금 압박 패턴)
+ *   - [V2] offPlatform + tooGood 동시 탐지: +12 (리딩방 패턴)
+ *   - [V2] impersonation + pressure 동시 탐지: +8  (기관 협박 패턴)
  *
  * 임계값:
  *   >= 70 → 매우위험 / >= 45 → 위험 / >= 20 → 주의 / else → 안전
@@ -256,12 +299,24 @@ export function detectScam(text: string): ScamResult {
     }
 
     if (firstMatch !== null) {
+      // [V2] 고위험 하위 패턴 검사 — highRiskPatterns 중 하나라도 매치되면 보너스 적용
+      let effectiveWeight = rule.weight;
+      if (rule.highRiskPatterns && rule.highRiskBonus !== undefined) {
+        for (const hrPattern of rule.highRiskPatterns) {
+          hrPattern.lastIndex = 0;
+          if (hrPattern.test(text)) {
+            effectiveWeight = rule.weight + rule.highRiskBonus;
+            break;
+          }
+        }
+      }
+
       signals.push({
         type: rule.type,
         label: rule.label,
         excerpt: extractExcerpt(text, firstMatch.index, firstMatch[0].length),
         why: rule.why,
-        weight: rule.weight,
+        weight: effectiveWeight,
       });
     }
   }
@@ -272,12 +327,23 @@ export function detectScam(text: string): ScamResult {
   // 기본 점수 합산
   let raw = signals.reduce((sum, s) => sum + s.weight, 0);
 
-  // 콤보 보너스
+  // ── 콤보 보너스 (V1 유지) ──────────────────────────────────────────────
   if (matchedTypes.has("url") && matchedTypes.has("money")) {
-    raw += 10;
+    raw += 10; // 링크 + 금전 요구
   }
   if (matchedTypes.has("impersonation") && matchedTypes.has("personalInfo")) {
-    raw += 12;
+    raw += 12; // 기관 사칭 + 개인정보 요구
+  }
+
+  // ── 콤보 보너스 (V2 신규) ──────────────────────────────────────────────
+  if (matchedTypes.has("money") && matchedTypes.has("pressure")) {
+    raw += 8;  // 송금 + 압박 → 가족 사칭 등 전형적 패턴
+  }
+  if (matchedTypes.has("offPlatform") && matchedTypes.has("tooGood")) {
+    raw += 12; // 플랫폼 이탈 + 비현실적 조건 → 리딩방 패턴
+  }
+  if (matchedTypes.has("impersonation") && matchedTypes.has("pressure")) {
+    raw += 8;  // 기관 사칭 + 압박 → 공문·영장 협박 패턴
   }
 
   const riskScore = Math.min(100, raw);
