@@ -15,7 +15,7 @@
 ### 🌐 웹앱 (바로 체험) — **https://scam-shield-9uc.pages.dev**
 
 설치 없이 브라우저에서 의심 문자를 붙여넣고 분석해 볼 수 있습니다. (예시 10개 버튼 내장,
-위험도·위험 신호·추천 행동·PII 마스킹까지 동일 엔진으로 동작) · 소스: `web/index.html`
+위험도·위험 신호·추천 행동·PII 마스킹까지 동일 엔진으로 동작) · 소스: `app/index.html`
 
 ### 💻 CLI (터미널)
 
@@ -38,7 +38,7 @@ node src/cli.mjs
 node src/evalRunner.mjs
 ```
 
-웹앱이 https://scam-shield-9uc.pages.dev 에 배포되어 있습니다(`web/index.html`). 커스텀 도메인·HTTPS는 Cloudflare Pages 기본 제공.
+웹앱이 https://scam-shield-9uc.pages.dev 에 배포되어 있습니다(`app/index.html`). 커스텀 도메인·HTTPS는 Cloudflare Pages 기본 제공.
 
 ---
 
